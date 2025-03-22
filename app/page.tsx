@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@heroui/card';
 import {Tabs, Tab} from "@heroui/tabs";
-import Avatar from '../components/Avatar';
+import PlayerStats from '../components/PlayerStats';
 import FocusTimer from '../components/FocusTimer';
 import Stages from '../components/Stage';
 import Quests from '../components/Quest';
@@ -34,32 +34,43 @@ export default function Home() {
   ];
 
   return (
-    <div className="container mx-auto p-4 grid grid-cols-1 md:grid-cols-5 gap-4">
-      <Card className="p-4">
-        <Avatar />
-      </Card>
-      <FocusTimer />
-      <Stages />
-      <Card className="p-4">
-        <Tabs>
-          <Tab key="quests" title="Quests">
-            <Quests />
-          </Tab>
-          <Tab key="dailyQuests" title="Daily Quests">
-            <DailyQuests />
-          </Tab>
-        </Tabs>
-      </Card>
-      <Card className="p-4">
-        <Tabs>
-          <Tab key="monthly" title="Monthly">
-            <CalendarView events={events} />
-          </Tab>
-          <Tab key="weekly" title="Weekly">
-            <CalendarView events={events} />
-          </Tab>
-        </Tabs>
-      </Card>
+    <div className="flex flex-col gap-4">
+      <div className="flex w-full">
+        <Stages />
+      </div>
+      <div className="flex flex-row gap-4">
+        <Card className="p-4 w-1/3">
+          <PlayerStats />
+        </Card>
+        <FocusTimer />
+      </div>
+      <div className="flex flex-row gap-4">
+        <Card className="p-4 w-2/3">
+          <Tabs>
+            <Tab key="quests" title="Quests">
+              <Quests />
+            </Tab>
+            <Tab key="dailyQuests" title="Daily Quests">
+              <DailyQuests />
+            </Tab>
+          </Tabs>
+        </Card>
+        <Card className="p-4 w-1/3">
+        <p>Daily view placeholder</p>
+        </Card>
+      </div>
+      <div className="flex w-full">
+        <Card className="p-4">
+          <Tabs>
+            <Tab key="monthly" title="Monthly">
+              <CalendarView events={events} />
+            </Tab>
+            <Tab key="weekly" title="Weekly">
+              <CalendarView events={events} />
+            </Tab>
+          </Tabs>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -18,7 +18,7 @@ const FocusTimer = () => {
   };
 
   return (
-    <Card className="p-4">
+    <Card className="p-4 w-2/3">
       <Tabs>
         <Tab key="stopwatch" title="Stopwatch">
           <Input

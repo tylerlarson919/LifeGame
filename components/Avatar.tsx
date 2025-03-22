@@ -1,4 +1,3 @@
-import { Avatar as HeroUIAvatar } from '@heroui/avatar';
 import { auth } from '../firebase';
 import { useEffect, useState } from 'react';
 
@@ -12,7 +11,7 @@ const Avatar = () => {
     return () => unsubscribe();
   }, []);
 
-  return <HeroUIAvatar src={userPhoto || '/default-avatar.png'} size="lg" />;
+  return <img src={userPhoto || '/default-avatar.png'} alt="User Avatar" className="w-24 h-24 rounded-full" />;
 };
 
 export default Avatar;
