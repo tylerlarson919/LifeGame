@@ -39,13 +39,13 @@ export default function Home() {
         <Stages />
       </div>
       <div className="flex flex-row gap-4">
-        <Card className="p-4 w-1/3">
+        <Card className="cardStyle p-4 w-1/3">
           <PlayerStats />
         </Card>
         <FocusTimer />
       </div>
       <div className="flex flex-row gap-4">
-        <Card className="p-4 w-2/3">
+        <Card className="cardStyle p-4 w-2/3">
           <Tabs>
             <Tab key="quests" title="Quests">
               <Quests />
@@ -55,12 +55,12 @@ export default function Home() {
             </Tab>
           </Tabs>
         </Card>
-        <Card className="p-4 w-1/3">
+        <Card className="cardStyle p-4 w-1/3">
         <p>Daily view placeholder</p>
         </Card>
       </div>
       <div className="flex w-full">
-        <Card className="p-4">
+        <Card className="cardStyle p-4">
           <Tabs>
             <Tab key="monthly" title="Monthly">
               <CalendarView events={events} />

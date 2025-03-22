@@ -36,7 +36,7 @@ const Quests = () => {
       setIsOpen(false);
     }
   };
-
+ 
   return (
     <Card className="p-4">
       <div className="flex justify-between items-center">

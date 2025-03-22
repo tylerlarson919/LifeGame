@@ -9,7 +9,7 @@ import { useEffect, useState, useRef } from 'react';
 import { auth } from '../firebase';
 import { Stage } from '../types';
 import { ScrollShadow } from "@heroui/scroll-shadow";
-
+ 
 const Stages = () => {
   const [stages, setStages] = useState<Stage[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -162,7 +162,7 @@ const editStage = async (stage: Stage) => {
             className="relative group"
             onClick={() => { setSelectedStage(stage); setEditModalOpen(true); }}
           >
-            <Card className="w-[250px] h-[100px] shrink-0 p-4 cursor-pointer">
+            <Card className="cardStyle w-[250px] h-[100px] shrink-0 p-4 cursor-pointer">
               <div className="flex gap-1 w-full">
                 <h4>🔥</h4>
                 <h4 className="truncate">{stage.title}</h4>
