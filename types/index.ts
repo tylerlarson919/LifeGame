@@ -1,4 +1,7 @@
 import { SVGProps } from "react";
+import { RangeValue } from "@react-types/shared";
+import { DateValue } from "@react-types/calendar";
+import { CalendarDate } from "@internationalized/date";
 
 export type IconSvgProps = SVGProps<SVGSVGElement> & {
   size?: number;
@@ -8,6 +11,8 @@ export interface Stage {
   id: string;
   title: string;
   description: string;
+  dateRange: RangeValue<DateValue> | null; 
+  difficulty: number;
   exp: number;
   hearts: number;
   gems: number;
@@ -19,6 +24,9 @@ export interface Quest {
   stageId: string;
   title: string;
   description: string;
+  difficulty: number;
+  dueDate: string;
+  hearts: number;
   exp: number;
   gems: number;
   completed: boolean;

@@ -9,7 +9,13 @@ import { useEffect, useState, useRef } from 'react';
 import { auth } from '../firebase';
 import { Stage } from '../types';
 import { ScrollShadow } from "@heroui/scroll-shadow";
- 
+import {NumberInput} from "@heroui/number-input";
+import {DateRangePicker} from "@heroui/date-picker";
+import { RangeValue } from "@react-types/shared";
+import { DateValue } from "@react-types/calendar";
+import { parseDate } from "@internationalized/date";
+import { getQuestRewards } from '../config/gameBalancing';
+
 const Stages = () => {
   const [stages, setStages] = useState<Stage[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -23,10 +29,23 @@ const Stages = () => {
       const querySnapshot = await getDocs(
         collection(db, `users/${auth.currentUser.uid}/stages`)
       );
-      const data = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Stage[];
+      const data = querySnapshot.docs.map((doc) => {
+        const docData = doc.data();
+        return {
+          id: doc.id,
+          ...docData,
+          dateRange: docData.dateRange
+            ? {
+                start: parseDate(docData.dateRange.start),
+                end: parseDate(docData.dateRange.end),
+              }
+            : null,
+        } as Stage;
+      });
+      data.sort((a, b) => {
+        if (!a.dateRange || !b.dateRange) return a.dateRange ? 1 : -1; // Put nulls at the end
+        return a.dateRange.end.compare(b.dateRange.end);
+      });
       setStages(data);
     }
   };
@@ -54,12 +73,19 @@ const Stages = () => {
     };
   }, []);
 
-  const addStage = async (data: Omit<Stage, 'id' | 'completed'>) => {
+  const addStage = async (data: Omit<Stage, 'id' | 'completed'> & { dateRange: RangeValue<DateValue> | null }) => {
     if (auth.currentUser) {
-      await addDocumentToCollection(auth.currentUser.uid, 'stages', {
+      const serializedData = {
         ...data,
+        dateRange: data.dateRange
+          ? {
+              start: data.dateRange.start.toString(),
+              end: data.dateRange.end.toString(),
+            }
+          : null,
         completed: false,
-      });
+      };
+      await addDocumentToCollection(auth.currentUser.uid, 'stages', serializedData);
       setIsOpen(false);
       await fetchStages();
     }
@@ -76,10 +102,17 @@ const deleteStage = async (stage: Stage) => {
 
 const editStage = async (stage: Stage) => {
   if (auth.currentUser) {
-    await updateDocument(auth.currentUser.uid, `stages/${stage.id}`, {
+    const serializedData = {
       ...stage,
+      dateRange: stage.dateRange
+        ? {
+            start: stage.dateRange.start.toString(), // Convert DateValue to ISO string
+            end: stage.dateRange.end.toString(),   // Convert DateValue to ISO string
+          }
+        : null,
       completed: stage.completed,
-    });
+    };
+    await updateDocument(auth.currentUser.uid, `stages/${stage.id}`, serializedData);
     setEditModalOpen(false);
     await fetchStages();
   }
@@ -87,17 +120,19 @@ const editStage = async (stage: Stage) => {
 
 
   type AddStageFormProps = {
-    onSubmit: (data: Omit<Stage, 'id' | 'completed'>) => void;
+    onSubmit: (data: Omit<Stage, 'id' | 'completed'> & { dateRange: RangeValue<DateValue> | null }) => void;
   };
 
   type EditStageFormProps = {
     stage: Stage;
-    onSubmit: (data: Omit<Stage, 'id' | 'completed'>) => void;
+    onSubmit: (data: Omit<Stage, 'id' | 'completed'> & { dateRange: RangeValue<DateValue> | null }) => void;
   };
 
   const AddStageForm: React.FC<AddStageFormProps> = ({ onSubmit }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+    const [dateRange, setDateRange] = useState<RangeValue<DateValue> | null>(null);
+    const [difficulty, setDifficulty] = useState(1);
     const [hearts, setHearts] = useState(1);
     const [exp, setExp] = useState(1);
     const [gems, setGems] = useState(1);
@@ -105,15 +140,23 @@ const editStage = async (stage: Stage) => {
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (title && description) {
-        onSubmit({ title, description, exp, hearts, gems });
+        onSubmit({ title, description, dateRange, difficulty, exp, hearts, gems });
       }
     };
+
+
 
     return (
       <form onSubmit={handleSubmit}>
         <div className="flex flex-col gap-4">
+          <div className='flex flex-row gap-4'>
+            <p>✨ {getQuestRewards(difficulty).exp}</p>
+            <p>💎 {getQuestRewards(difficulty).gems}</p>
+          </div>
           <Input label="Title" labelPlacement="inside" placeholder="New stage" value={title} onChange={(e) => setTitle(e.target.value)} />
           <Input label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
+          <NumberInput minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
+          <DateRangePicker label="Date range" labelPlacement="inside" value={dateRange} onChange={setDateRange} />
           <Button type="submit">Add Stage</Button>
         </div>
       </form>
@@ -122,6 +165,8 @@ const editStage = async (stage: Stage) => {
   const EditStageForm: React.FC<EditStageFormProps> = ({ stage, onSubmit }) => {
     const [title, setTitle] = useState(stage.title);
     const [description, setDescription] = useState(stage.description);
+    const [dateRange, setDateRange] = useState(stage.dateRange);
+    const [difficulty, setDifficulty] = useState(stage.difficulty);
     const [hearts, setHearts] = useState(stage.hearts);
     const [exp, setExp] = useState(stage.exp);
     const [gems, setGems] = useState(stage.gems);
@@ -129,15 +174,21 @@ const editStage = async (stage: Stage) => {
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (title && description) {
-        onSubmit({ title, description, exp, hearts, gems });
+        onSubmit({ title, description, dateRange, difficulty, exp, hearts, gems });
       }
     };
 
     return (
       <form onSubmit={handleSubmit}>
         <div className="flex flex-col gap-4">
+          <div className='flex flex-row gap-4'>
+            <p>✨ {getQuestRewards(difficulty).exp}</p>
+            <p>💎 {getQuestRewards(difficulty).gems}</p>
+          </div>
           <Input label="Title" labelPlacement="inside" placeholder="New stage" value={title} onChange={(e) => setTitle(e.target.value)} />
           <Input label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
+          <NumberInput minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
+          <DateRangePicker label="Date range" labelPlacement="inside" value={dateRange} onChange={setDateRange} />
           <Button type="submit">Confirm</Button>
         </div>
       </form>
@@ -226,8 +277,6 @@ const editStage = async (stage: Stage) => {
           </div>
         </ModalContent>
       </Modal>
-
-
     </div>
   );
 };
