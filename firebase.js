@@ -39,3 +39,8 @@ export const deleteDocument = async (userId, documentPath) => {
   const docRef = doc(db, `users/${userId}/${documentPath}`);
   await deleteDoc(docRef);
 };
+
+export const tweakValueOnDocument = async (userId, documentPath, fieldName, value) => {
+  const docRef = doc(db, `users/${userId}/${documentPath}`);
+  await updateDoc(docRef, { [fieldName]: value });
+};

@@ -3,7 +3,7 @@ import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
-import { addDocumentToCollection, deleteDocument, updateDocument } from '../firebase';
+import { addDocumentToCollection, deleteDocument, updateDocument, tweakValueOnDocument } from '../firebase';
 import { useEffect, useState } from 'react';
 import { auth } from '../firebase';
 import { Quest } from '../types';
@@ -17,6 +17,10 @@ import { getQuestRewards } from '../config/gameBalancing';
 import { NumberInput } from '@heroui/number-input';
 import { parseDateTime, CalendarDateTime } from "@internationalized/date";
 import { Chip } from '@heroui/chip';
+import { Checkbox } from '@heroui/checkbox';
+import { triggerQuestForProfile } from './PlayerStats';
+
+
 const Quests = () => {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [stages, setStages] = useState<Array<{ id: string; title: string; completed: boolean }>>([]);
@@ -24,7 +28,6 @@ const Quests = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
-
   const formatDueDate = (utcDateString: string) => {
     const date = new Date(utcDateString);
     return date.toLocaleString('en-US', {
@@ -36,6 +39,15 @@ const Quests = () => {
       hour12: true,
     });
   };
+
+  const toggleQuestCompletion = async (quest: Quest) => {
+    if (auth.currentUser) {
+      const updatedQuest = { ...quest, completed: !quest.completed };
+      await updateDocument(auth.currentUser.uid, `quests/${quest.id}`, updatedQuest);
+      await fetchQuests();
+    }
+  };
+
 
   const fetchStages = async () => {
     if (auth.currentUser) {
@@ -128,6 +140,11 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
   const [selectedStageName, setSelectedStageName] = useState<string>('');
   const [difficulty, setDifficulty] = useState(1);
 
+  useEffect(() => {
+    const rewards = getQuestRewards(difficulty);
+    setExp(rewards.exp);
+    setGems(rewards.gems);
+  }, [difficulty]);
 
   useEffect(() => {
     if (selectedStage) {
@@ -171,11 +188,13 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
           onChange={setDueDate}
         />
         <div className="flex flex-row gap-4 w-full justify-center items-center">
-          <div className='flex flex-col gap-1 w-1/2'>
-            <p className='text-[12px] text-[#D4D4D8] pl-3'>Stage</p>
             <Dropdown>
               <DropdownTrigger>
-                <Button variant="bordered" className='w-full'>
+                <Button 
+                  size="lg" 
+                  variant="flat" 
+                  className='w-1/2 h-[56px]'
+                >
                   {selectedStage ? stages.find(s => s.id === selectedStage)?.title || "Select Stage" : "No Stage"}
                 </Button>
               </DropdownTrigger>
@@ -202,7 +221,6 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
                 </DropdownSection>
               </DropdownMenu>
             </Dropdown>
-          </div>
           <NumberInput className="w-1/2" minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
         </div>
         <div className='w-full flex flex-row gap-4 justify-center'>
@@ -240,6 +258,12 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
   const [difficulty, setDifficulty] = useState(stage.difficulty);
 
   useEffect(() => {
+    const rewards = getQuestRewards(difficulty);
+    setExp(rewards.exp);
+    setGems(rewards.gems);
+  }, [difficulty]);
+
+  useEffect(() => {
     if (selectedStage) {
       const stage = stages.find(s => s.id === selectedStage);
       setSelectedStageName(stage ? stage.title : '');
@@ -280,11 +304,13 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
           onChange={setDueDate}
         />
         <div className="flex flex-row gap-4 w-full justify-center items-center">
-          <div className='flex flex-col gap-1 w-1/2'>
-            <p className='text-[12px] text-[#D4D4D8] pl-3'>Stage</p>
             <Dropdown>
               <DropdownTrigger>
-                <Button variant="bordered" className='w-full'>
+                <Button 
+                    size="lg" 
+                    variant="flat" 
+                    className='w-1/2 h-[56px]'
+                  >
                   {selectedStage ? stages.find(s => s.id === selectedStage)?.title || "Select Stage" : "No Stage"}
                 </Button>
               </DropdownTrigger>
@@ -311,7 +337,6 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
                   </DropdownSection>
                 </DropdownMenu>
             </Dropdown>
-          </div>
           <NumberInput className="w-1/2" minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
         </div>
         <div className='w-full flex flex-row gap-4 justify-center'>
@@ -325,6 +350,77 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
 };
 
 
+
+const QuestItem = ({ quest }: { quest: Quest }) => {
+  const [questCompleted, setQuestCompleted] = useState(quest.completed);
+
+  useEffect(() => {
+    const updateQuest = async () => {
+      if (auth.currentUser) {
+        await tweakValueOnDocument(auth.currentUser.uid, `quests/${quest.id}`, 'completed', questCompleted);
+        triggerQuestForProfile(questCompleted);
+      }
+    };
+  
+    updateQuest();
+  }, [questCompleted]);
+
+  return (
+    <div
+      key={quest.id}
+      className="relative group"
+      onClick={() => {
+        setSelectedQuest(quest);
+        setEditModalOpen(true);
+      }}
+    >
+      <Card className="cardStyle w-[250px] h-[150px] shrink-0 p-4 cursor-pointer">
+        <div className="flex justify-between items-center mb-1">
+          <div className="flex gap-1 items-center">
+            <span>🔥</span>
+            <h4 className="text-sm truncate">{quest.title}</h4>
+          </div>
+          <div className="flex gap-2 text-sm">
+            <span>{quest.gems}💎</span>
+            <span>{quest.exp}✨</span>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 text-xs mt-1">
+          <span className="text-[#D4D4D8]">{formatDueDate(quest.dueDate)}</span>
+          {quest.stageName && (
+            <Chip variant="dot" color="secondary">
+              {quest.stageName}
+            </Chip>
+          )}
+          <div
+            className="absolute bottom-2 right-2"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <Checkbox
+              isSelected={questCompleted}
+              onValueChange={() => setQuestCompleted(!questCompleted)}
+            />
+          </div>
+        </div>
+      </Card>
+      {/* Trashcan Icon */}
+      <div
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSelectedQuest(quest);
+          setDeleteModalOpen(true);
+        }}
+      >
+        <button>🗑️</button>
+      </div>
+    </div>
+  );
+};
+
+
  
   return (
     <Card className="p-4">
@@ -334,44 +430,11 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
           <Button onPress={() => setIsOpen(true)}>+</Button>
         </div>
         <ScrollShadow
-          hideScrollBar
           orientation="horizontal"
           className="w-full flex flex-row flex-nowrap gap-4 h-full py-2"
         >
           {quests.map((quest) => (
-            <div
-              key={quest.id}
-              className="relative group"
-              onClick={() => { setSelectedQuest(quest); setEditModalOpen(true); }}
-            >
-              <Card className="cardStyle w-[250px] h-[150px] shrink-0 p-4 cursor-pointer">
-                <div className="flex justify-between items-center mb-1">
-                  <div className="flex gap-1 items-center">
-                    <span>🔥</span>
-                    <h4 className="text-sm truncate">{quest.title}</h4>
-                  </div>
-                  <div className="flex gap-2 text-sm">
-                    <span>{quest.gems}💎</span>
-                    <span>{quest.exp}✨</span>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2 text-xs mt-1">
-                  <span className='text-[#D4D4D8]'>{formatDueDate(quest.dueDate)}</span>
-                  <Chip variant="dot" color="secondary">{quest.stageName}</Chip>
-                </div>
-              </Card>
-              {/* Trashcan Icon */}
-              <div
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedQuest(quest);
-                  setDeleteModalOpen(true);
-                }}
-              >
-                <button>🗑️</button>
-              </div>
-            </div>
+            <QuestItem key={quest.id} quest={quest} />
           ))}
         </ScrollShadow>
 

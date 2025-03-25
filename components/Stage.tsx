@@ -2,8 +2,7 @@ import { Card } from '@heroui/card';
 import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
 import { Modal, ModalContent } from '@heroui/modal';
-import { addDocumentToCollection, deleteDocument, updateDocument } from '../firebase';
-import { db } from '../firebase';
+import { addDocumentToCollection, deleteDocument, updateDocument, db } from '../firebase';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { useEffect, useState, useRef } from 'react';
 import { auth } from '../firebase';
@@ -137,6 +136,12 @@ const editStage = async (stage: Stage) => {
     const [exp, setExp] = useState(1);
     const [gems, setGems] = useState(1);
 
+      useEffect(() => {
+        const rewards = getQuestRewards(difficulty);
+        setExp(rewards.exp);
+        setGems(rewards.gems);
+      }, [difficulty]);
+
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (title && description) {
@@ -179,6 +184,12 @@ const editStage = async (stage: Stage) => {
     const [hearts, setHearts] = useState(stage.hearts);
     const [exp, setExp] = useState(stage.exp);
     const [gems, setGems] = useState(stage.gems);
+
+      useEffect(() => {
+        const rewards = getQuestRewards(difficulty);
+        setExp(rewards.exp);
+        setGems(rewards.gems);
+      }, [difficulty]);
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
