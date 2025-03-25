@@ -40,7 +40,7 @@ const PlayerStats = () => {
     if (level !== displayedLevel) {
       const startValue = displayedLevel;
       const endValue = level;
-      const duration = 3000;
+      const duration = 1000;
       const easeInOut = (t: number) =>
         t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
       let startTime: number | null = null;
@@ -63,7 +63,7 @@ const PlayerStats = () => {
     const startXP = displayedXP;
     const endXP = experience;
     if (startXP === endXP) return;
-    const duration = 3000;
+    const duration = 1000;
     const easeInOut = (t: number) =>
       t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
     let startTime: number | null = null;
@@ -171,7 +171,7 @@ const PlayerStats = () => {
   useEffect(() => {
     const newLevel = calculateLevel(experience);
     const newNextLevelExp = calculateNextLevelExp(newLevel);
-    const newCurrentLevelBaseExp = Math.pow(newLevel, 2);
+    const newCurrentLevelBaseExp = Math.pow(newLevel, 2) * 5;
     const newProgressPercent = ((experience - newCurrentLevelBaseExp) / (newNextLevelExp - newCurrentLevelBaseExp)) * 100;
 
     setLevel(newLevel);

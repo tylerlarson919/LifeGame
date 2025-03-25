@@ -19,6 +19,7 @@ import { parseDateTime, CalendarDateTime } from "@internationalized/date";
 import { Chip } from '@heroui/chip';
 import { Checkbox } from '@heroui/checkbox';
 import { triggerQuestForProfile } from './PlayerStats';
+import { FaArrowRightToBracket } from "react-icons/fa6";
 
 
 const Quests = () => {
@@ -28,6 +29,37 @@ const Quests = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
+  const [selectedFilterValue, setSelectedFilterValue] = React.useState(new Set(["today"]));
+
+  const selectedFilterKeys = React.useMemo(
+    () => Array.from(selectedFilterValue)
+      .join(", ")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase()),
+    [selectedFilterValue],
+  );
+
+    const filteredQuests = React.useMemo(() => {
+        const filterKey = Array.from(selectedFilterValue)[0];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+    
+        return quests.filter(quest => {
+          const questDate = new Date(quest.dueDate);
+          questDate.setHours(0, 0, 0, 0);
+          if (filterKey === "today") {
+            return questDate.getTime() === today.getTime() && !quest.completed;
+          } else if (filterKey === "todays_context") {
+            return questDate.getTime() === today.getTime();
+          } else if (filterKey === "tomorrow") {
+            return questDate.getTime() === tomorrow.getTime() && !quest.completed;
+          }
+          return true;
+        });
+      }, [quests, selectedFilterValue]);
+
   const formatDueDate = (utcDateString: string) => {
     const date = new Date(utcDateString);
     return date.toLocaleString('en-US', {
@@ -169,6 +201,8 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
     <form onSubmit={handleSubmit}>
       <div className="flex flex-col gap-4">
         <Input 
+          id="edit-quest-title"
+          name="title"
           size="lg"
           placeholder="New quest" 
           value={title} 
@@ -178,8 +212,10 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
             input: ["!text-2xl font-bold"],
           }}
         />
-        <Input label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
+        <Input id="quest-description" name="description" label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
         <DatePicker
+          id="edit-quest-due-date"
+          name="dueDate"
           granularity="minute"
           hideTimeZone
           label="Due Date"
@@ -189,7 +225,7 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
         />
         <div className="flex flex-row gap-4 w-full justify-center items-center">
             <Dropdown>
-              <DropdownTrigger>
+              <DropdownTrigger id="stage-dropdown-btn">
                 <Button 
                   size="lg" 
                   variant="flat" 
@@ -199,7 +235,7 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
                 </Button>
               </DropdownTrigger>
               <DropdownMenu 
-                aria-label="Link to Stage (optional)" 
+                aria-labelledby="stage-dropdown-btn" 
                 selectionMode="single"
                 selectedKeys={new Set(selectedStage ? [selectedStage] : ["no-stage"])}
                 onSelectionChange={(keys) => {
@@ -285,6 +321,8 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
     <form onSubmit={handleSubmit}>
       <div className="flex flex-col gap-4">
         <Input 
+          id="edit-quest-title"
+          name="title"
           size="lg"
           placeholder="New quest" 
           value={title} 
@@ -294,8 +332,10 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
             input: ["!text-2xl font-bold"],
           }}
         />
-        <Input label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
+        <Input id="quest-description" name="description" label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
         <DatePicker
+          id="edit-quest-due-date"
+          name="dueDate"
           granularity="minute"
           hideTimeZone
           label="Due Date"
@@ -305,7 +345,7 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
         />
         <div className="flex flex-row gap-4 w-full justify-center items-center">
             <Dropdown>
-              <DropdownTrigger>
+              <DropdownTrigger id="edit-stage-dropdown-btn">
                 <Button 
                     size="lg" 
                     variant="flat" 
@@ -315,7 +355,7 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
                 </Button>
               </DropdownTrigger>
                 <DropdownMenu 
-                  aria-label="Link to Stage (optional)" 
+                  aria-labelledby="edit-stage-dropdown-btn" 
                   selectionMode="single"
                   selectedKeys={new Set(selectedStage ? [selectedStage] : ["no-stage"])}
                   onSelectionChange={(keys) => {
@@ -359,9 +399,10 @@ const QuestItem = ({ quest }: { quest: Quest }) => {
       if (auth.currentUser) {
         await tweakValueOnDocument(auth.currentUser.uid, `quests/${quest.id}`, 'completed', questCompleted);
         triggerQuestForProfile(questCompleted);
+        await fetchQuests();
       }
     };
-  
+
     updateQuest();
   }, [questCompleted]);
 
@@ -374,35 +415,38 @@ const QuestItem = ({ quest }: { quest: Quest }) => {
         setEditModalOpen(true);
       }}
     >
-      <Card className="cardStyle w-[250px] h-[150px] shrink-0 p-4 cursor-pointer">
-        <div className="flex justify-between items-center mb-1">
-          <div className="flex gap-1 items-center">
-            <span>🔥</span>
-            <h4 className="text-sm truncate">{quest.title}</h4>
-          </div>
-          <div className="flex gap-2 text-sm">
-            <span>{quest.gems}💎</span>
-            <span>{quest.exp}✨</span>
-          </div>
-        </div>
-        <div className="flex flex-col gap-2 text-xs mt-1">
-          <span className="text-[#D4D4D8]">{formatDueDate(quest.dueDate)}</span>
-          {quest.stageName && (
-            <Chip variant="dot" color="secondary">
-              {quest.stageName}
-            </Chip>
-          )}
+      <Card className="cardStyle w-full h-[80px] shrink-0 p-4 cursor-pointer">
+        <div className="flex justify-start items-center">
           <div
-            className="absolute bottom-2 right-2"
+            className="w-fit h-fit flex items-center"
             onClick={(e) => {
               e.stopPropagation();
             }}
           >
             <Checkbox
+              id="quest-completed"
+              name="questCompleted"
+              className='w-fit h-fit'
               isSelected={questCompleted}
               onValueChange={() => setQuestCompleted(!questCompleted)}
             />
           </div>
+          <div className="flex gap-1 items-center">
+            <span>🔥</span>
+            <h4 className="text-sm truncate">{quest.title}</h4>
+          </div>
+        </div>
+        <div className="flex flex-row gap-2 text-xs items-center">
+          <span className="text-[#D4D4D8]">{formatDueDate(quest.dueDate)}</span>
+          {quest.stageName && (
+            <Chip size="sm" variant="dot" color="secondary">
+              {quest.stageName}
+            </Chip>
+          )}
+        </div>
+        <div className="flex gap-2 text-sm w-fit items-center absolute bottom-2 right-2">
+            <span>{quest.gems}💎</span>
+            <span>{quest.exp}✨</span>
         </div>
       </Card>
       {/* Trashcan Icon */}
@@ -420,20 +464,39 @@ const QuestItem = ({ quest }: { quest: Quest }) => {
   );
 };
 
-
  
   return (
     <Card className="p-4">
       <div className="flex flex-col gap-4 w-full">
         <div className="flex justify-between items-center">
-          <h2>Quests</h2>
+          <div className="flex items-center w-full">
+            <Dropdown>
+              <DropdownTrigger id="time-filter-dropdown">
+                <Button className='w-full justify-start border-none' variant="bordered"><h3 className='text-left'>{selectedFilterKeys}</h3></Button>
+              </DropdownTrigger>
+              <DropdownMenu 
+                aria-labelledby="time-filter-dropdown" 
+                disallowEmptySelection
+                selectedKeys={selectedFilterValue}
+                selectionMode="single"
+                onSelectionChange={(keys) => setSelectedFilterValue(new Set(keys as Set<string>))}
+                >
+                <DropdownItem key="today">Today</DropdownItem>
+                <DropdownItem key="todays_context">Today's Context</DropdownItem>
+                <DropdownItem key="tomorrow">Tomorrow</DropdownItem>
+                <DropdownItem
+                  endContent={<FaArrowRightToBracket className=''/>}
+                  key="all"
+                >See All</DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
+          </div>
           <Button onPress={() => setIsOpen(true)}>+</Button>
         </div>
         <ScrollShadow
-          orientation="horizontal"
-          className="w-full flex flex-row flex-nowrap gap-4 h-full py-2"
+          className="w-full flex flex-col flex-nowrap gap-2 h-full py-2"
         >
-          {quests.map((quest) => (
+          {filteredQuests.map((quest) => (
             <QuestItem key={quest.id} quest={quest} />
           ))}
         </ScrollShadow>
