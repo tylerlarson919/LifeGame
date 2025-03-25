@@ -15,7 +15,8 @@ import { Modal, ModalContent } from '@heroui/modal';
 import { ScrollShadow } from '@heroui/scroll-shadow';
 import { getQuestRewards } from '../config/gameBalancing';
 import { NumberInput } from '@heroui/number-input';
-
+import { parseDateTime, CalendarDateTime } from "@internationalized/date";
+import { Chip } from '@heroui/chip';
 const Quests = () => {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [stages, setStages] = useState<Array<{ id: string; title: string; completed: boolean }>>([]);
@@ -24,7 +25,17 @@ const Quests = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
 
-
+  const formatDueDate = (utcDateString: string) => {
+    const date = new Date(utcDateString);
+    return date.toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true,
+    });
+  };
 
   const fetchStages = async () => {
     if (auth.currentUser) {
@@ -102,17 +113,37 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
   const [hearts, setHearts] = useState(1);
   const [exp, setExp] = useState(1);
   const [gems, setGems] = useState(1);
-  const [dueDate, setDueDate] = React.useState<CalendarDate | null>(
-    parseDate(new Date().toISOString().split("T")[0])
+  const now = new Date();
+  const [dueDate, setDueDate] = React.useState<CalendarDateTime | null>(
+    new CalendarDateTime(
+      now.getFullYear(),
+      now.getMonth() + 1, // getMonth() returns 0-11, CalendarDateTime expects 1-12
+      now.getDate(),
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds()
+    )
   );
   const [selectedStage, setSelectedStage] = useState<string>('');
+  const [selectedStageName, setSelectedStageName] = useState<string>('');
   const [difficulty, setDifficulty] = useState(1);
+
+
+  useEffect(() => {
+    if (selectedStage) {
+      const stage = stages.find(s => s.id === selectedStage);
+      setSelectedStageName(stage ? stage.title : '');
+    } else {
+      setSelectedStageName('');
+    }
+  }, [selectedStage, stages]);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (title && description && dueDate) {
-      const dueDateString = `${dueDate.year}-${String(dueDate.month).padStart(2, '0')}-${String(dueDate.day).padStart(2, '0')}`;
-      onSubmit({ title, description, dueDate: dueDateString, exp, hearts, gems, difficulty, stageId: selectedStage });
+      const dueDateUTC = dueDate.toDate(getLocalTimeZone()).toISOString();
+      onSubmit({ title, description, dueDate: dueDateUTC, exp, hearts, gems, difficulty, stageId: selectedStage, stageName: selectedStageName });
     }
   };
   
@@ -120,42 +151,63 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
   return (
     <form onSubmit={handleSubmit}>
       <div className="flex flex-col gap-4">
-        <div className='flex flex-row gap-4'>
-          <p>✨ {getQuestRewards(difficulty).exp}</p>
-          <p>💎 {getQuestRewards(difficulty).gems}</p>
-        </div>
-        <Input label="Title" labelPlacement="inside" placeholder="New quest" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <Input 
+          size="lg"
+          placeholder="New quest" 
+          value={title} 
+          onChange={(e) => setTitle(e.target.value)} 
+          classNames={{
+            inputWrapper: ["bg-transparent active:bg-transparent data-[hover=true]:bg-transparent group-data-[focus=true]:bg-transparent focus:bg-transparent"],
+            input: ["!text-2xl font-bold"],
+          }}
+        />
         <Input label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
         <DatePicker
+          granularity="minute"
+          hideTimeZone
           label="Due Date"
           labelPlacement="inside"
           value={dueDate}
           onChange={setDueDate}
         />
         <div className="flex flex-row gap-4 w-full justify-center items-center">
-          <Dropdown>
-            <DropdownTrigger>
-              <Button variant="bordered" className='w-1/2'>
-                {selectedStage ? stages.find(s => s.id === selectedStage)?.title || "Select Stage" : "No Stage"}
-              </Button>
-            </DropdownTrigger>
-            <DropdownMenu 
-              aria-label="Link to Stage (optional)" 
-              selectionMode="single"
-              selectedKeys={new Set([selectedStage])}
-              onSelectionChange={(keys) => setSelectedStage(Array.from(keys)[0] as string)}
-            >
-              <DropdownSection>
-                <DropdownItem key="no-stage" value="no-stage">No Stage</DropdownItem>
-              </DropdownSection>
-              <DropdownSection>
-                {stages.filter(s => !s.completed).map((s) => (
-                  <DropdownItem key={s.id} value={s.id}>{s.title}</DropdownItem>
-                ))}
-              </DropdownSection>
-            </DropdownMenu>
-          </Dropdown>
+          <div className='flex flex-col gap-1 w-1/2'>
+            <p className='text-[12px] text-[#D4D4D8] pl-3'>Stage</p>
+            <Dropdown>
+              <DropdownTrigger>
+                <Button variant="bordered" className='w-full'>
+                  {selectedStage ? stages.find(s => s.id === selectedStage)?.title || "Select Stage" : "No Stage"}
+                </Button>
+              </DropdownTrigger>
+              <DropdownMenu 
+                aria-label="Link to Stage (optional)" 
+                selectionMode="single"
+                selectedKeys={new Set(selectedStage ? [selectedStage] : ["no-stage"])}
+                onSelectionChange={(keys) => {
+                  const selectedKey = Array.from(keys)[0] as string;
+                  if (selectedKey === "no-stage") {
+                    setSelectedStage('');
+                  } else {
+                    setSelectedStage(selectedKey);
+                  }
+                }}
+              >
+                <DropdownSection>
+                  <DropdownItem key="no-stage">No Stage</DropdownItem>
+                </DropdownSection>
+                <DropdownSection>
+                  {stages.filter(s => !s.completed).map((s) => (
+                    <DropdownItem key={s.id}>{s.title}</DropdownItem>
+                  ))}
+                </DropdownSection>
+              </DropdownMenu>
+            </Dropdown>
+          </div>
           <NumberInput className="w-1/2" minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
+        </div>
+        <div className='w-full flex flex-row gap-4 justify-center'>
+          <p>✨ {getQuestRewards(difficulty).exp}</p>
+          <p>💎 {getQuestRewards(difficulty).gems}</p>
         </div>
         <Button type="submit">Add Quest</Button>
       </div>
@@ -168,15 +220,39 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
   const [hearts, setHearts] = useState(stage.hearts);
   const [exp, setExp] = useState(stage.exp);
   const [gems, setGems] = useState(stage.gems);
-  const [dueDate, setDueDate] = useState<CalendarDate | null>(stage.dueDate ? parseDate(stage.dueDate) : null);
+  const [dueDate, setDueDate] = useState<CalendarDateTime | null>(
+    stage.dueDate
+      ? (() => {
+          const date = new Date(stage.dueDate);
+          return new CalendarDateTime(
+            date.getFullYear(),
+            date.getMonth() + 1, // getMonth() returns 0-11, CalendarDateTime expects 1-12
+            date.getDate(),
+            date.getHours(),
+            date.getMinutes(),
+            date.getSeconds()
+          );
+        })()
+      : null
+  );
   const [selectedStage, setSelectedStage] = useState<string>(stage.stageId || '');
+  const [selectedStageName, setSelectedStageName] = useState<string>(stage.stageName || '');
   const [difficulty, setDifficulty] = useState(stage.difficulty);
+
+  useEffect(() => {
+    if (selectedStage) {
+      const stage = stages.find(s => s.id === selectedStage);
+      setSelectedStageName(stage ? stage.title : '');
+    } else {
+      setSelectedStageName('');
+    }
+  }, [selectedStage, stages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (title && description && dueDate) {
-      const dueDateString = `${dueDate.year}-${String(dueDate.month).padStart(2, '0')}-${String(dueDate.day).padStart(2, '0')}`;
-      onSubmit({ title, description, dueDate: dueDateString, exp, hearts, gems, difficulty, stageId: selectedStage });
+      const dueDateUTC = dueDate.toDate(getLocalTimeZone()).toISOString();
+      onSubmit({ title, description, dueDate: dueDateUTC, exp, hearts, gems, difficulty, stageId: selectedStage, stageName: selectedStageName });
     }
   };
   
@@ -184,42 +260,63 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
   return (
     <form onSubmit={handleSubmit}>
       <div className="flex flex-col gap-4">
-        <div className='flex flex-row gap-4'>
-          <p>✨ {getQuestRewards(difficulty).exp}</p>
-          <p>💎 {getQuestRewards(difficulty).gems}</p>
-        </div>
-        <Input label="Title" labelPlacement="inside" placeholder="New quest" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <Input 
+          size="lg"
+          placeholder="New quest" 
+          value={title} 
+          onChange={(e) => setTitle(e.target.value)} 
+          classNames={{
+            inputWrapper: ["bg-transparent active:bg-transparent data-[hover=true]:bg-transparent group-data-[focus=true]:bg-transparent focus:bg-transparent"],
+            input: ["!text-2xl font-bold"],
+          }}
+        />
         <Input label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
         <DatePicker
+          granularity="minute"
+          hideTimeZone
           label="Due Date"
           labelPlacement="inside"
           value={dueDate}
           onChange={setDueDate}
         />
         <div className="flex flex-row gap-4 w-full justify-center items-center">
+          <div className='flex flex-col gap-1 w-1/2'>
+            <p className='text-[12px] text-[#D4D4D8] pl-3'>Stage</p>
             <Dropdown>
               <DropdownTrigger>
-                <Button variant="bordered" className='w-1/2'>
+                <Button variant="bordered" className='w-full'>
                   {selectedStage ? stages.find(s => s.id === selectedStage)?.title || "Select Stage" : "No Stage"}
                 </Button>
               </DropdownTrigger>
-              <DropdownMenu 
-                aria-label="Link to Stage (optional)" 
-                selectionMode="single"
-                selectedKeys={new Set([selectedStage])}
-                onSelectionChange={(keys) => setSelectedStage(Array.from(keys)[0] as string)}
-              >
-                <DropdownSection>
-                  <DropdownItem key="no-stage" value="no-stage">No Stage</DropdownItem>
-                </DropdownSection>
-                <DropdownSection>
-                  {stages.filter(s => !s.completed).map((s) => (
-                    <DropdownItem key={s.id} value={s.id}>{s.title}</DropdownItem>
-                  ))}
-                </DropdownSection>
-              </DropdownMenu>
+                <DropdownMenu 
+                  aria-label="Link to Stage (optional)" 
+                  selectionMode="single"
+                  selectedKeys={new Set(selectedStage ? [selectedStage] : ["no-stage"])}
+                  onSelectionChange={(keys) => {
+                    const selectedKey = Array.from(keys)[0] as string;
+                    if (selectedKey === "no-stage") {
+                      setSelectedStage('');
+                    } else {
+                      setSelectedStage(selectedKey);
+                    }
+                  }}
+                >
+                  <DropdownSection>
+                    <DropdownItem key="no-stage">No Stage</DropdownItem>
+                  </DropdownSection>
+                  <DropdownSection>
+                    {stages.filter(s => !s.completed).map((s) => (
+                      <DropdownItem key={s.id}>{s.title}</DropdownItem>
+                    ))}
+                  </DropdownSection>
+                </DropdownMenu>
             </Dropdown>
+          </div>
           <NumberInput className="w-1/2" minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
+        </div>
+        <div className='w-full flex flex-row gap-4 justify-center'>
+          <p>✨ {getQuestRewards(difficulty).exp}</p>
+          <p>💎 {getQuestRewards(difficulty).gems}</p>
         </div>
         <Button type="submit">Confirm</Button>
       </div>
@@ -247,12 +344,21 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
               className="relative group"
               onClick={() => { setSelectedQuest(quest); setEditModalOpen(true); }}
             >
-              <Card className="cardStyle w-[250px] h-[100px] shrink-0 p-4 cursor-pointer">
-                <div className="flex gap-1 w-full">
-                  <h4>🔥</h4>
-                  <h4 className="truncate">{quest.title}</h4>
+              <Card className="cardStyle w-[250px] h-[150px] shrink-0 p-4 cursor-pointer">
+                <div className="flex justify-between items-center mb-1">
+                  <div className="flex gap-1 items-center">
+                    <span>🔥</span>
+                    <h4 className="text-sm truncate">{quest.title}</h4>
+                  </div>
+                  <div className="flex gap-2 text-sm">
+                    <span>{quest.gems}💎</span>
+                    <span>{quest.exp}✨</span>
+                  </div>
                 </div>
-                <p className="truncate">{quest.description}</p>
+                <div className="flex flex-col gap-2 text-xs mt-1">
+                  <span className='text-[#D4D4D8]'>{formatDueDate(quest.dueDate)}</span>
+                  <Chip variant="dot" color="secondary">{quest.stageName}</Chip>
+                </div>
               </Card>
               {/* Trashcan Icon */}
               <div
@@ -261,10 +367,9 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
                   e.stopPropagation();
                   setSelectedQuest(quest);
                   setDeleteModalOpen(true);
-                }}>
-                <button>
-                  🗑️
-                </button>
+                }}
+              >
+                <button>🗑️</button>
               </div>
             </div>
           ))}
@@ -274,7 +379,6 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
         <Modal placement="center" size="xl" isOpen={isOpen} onClose={() => setIsOpen(false)}>
           <ModalContent>
             <div className="flex flex-col gap-4 p-4">
-              <h3>New Quest</h3>
               <AddQuestForm onSubmit={addQuest} stages={stages} />
             </div>
           </ModalContent>
@@ -301,7 +405,6 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
         <Modal placement="center" size="xl" isOpen={editModalOpen} onClose={() => setEditModalOpen(false)}>
           <ModalContent>
             <div className="flex flex-col gap-4 p-4">
-              <h3>Edit Quest</h3>
               {selectedQuest && (
                 <EditQuestForm 
                   stage={selectedQuest}

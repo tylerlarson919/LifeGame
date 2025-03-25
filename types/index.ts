@@ -22,6 +22,7 @@ export interface Stage {
 export interface Quest {
   id: string;
   stageId: string;
+  stageName: string;
   title: string;
   description: string;
   difficulty: number;

@@ -149,14 +149,23 @@ const editStage = async (stage: Stage) => {
     return (
       <form onSubmit={handleSubmit}>
         <div className="flex flex-col gap-4">
-          <div className='flex flex-row gap-4'>
-            <p>✨ {getQuestRewards(difficulty).exp}</p>
-            <p>💎 {getQuestRewards(difficulty).gems}</p>
-          </div>
-          <Input label="Title" labelPlacement="inside" placeholder="New stage" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <Input 
+            size="lg"
+            placeholder="New stage" 
+            value={title} 
+            onChange={(e) => setTitle(e.target.value)} 
+            classNames={{
+              inputWrapper: ["bg-transparent active:bg-transparent data-[hover=true]:bg-transparent group-data-[focus=true]:bg-transparent focus:bg-transparent"],
+              input: ["!text-2xl font-bold"],
+            }}
+          />
           <Input label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
           <NumberInput minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
           <DateRangePicker label="Date range" labelPlacement="inside" value={dateRange} onChange={setDateRange} />
+          <div className='w-full flex flex-row gap-4 justify-center'>
+            <p>✨ {getQuestRewards(difficulty).exp}</p>
+            <p>💎 {getQuestRewards(difficulty).gems}</p>
+          </div>
           <Button type="submit">Add Stage</Button>
         </div>
       </form>
@@ -181,14 +190,23 @@ const editStage = async (stage: Stage) => {
     return (
       <form onSubmit={handleSubmit}>
         <div className="flex flex-col gap-4">
-          <div className='flex flex-row gap-4'>
-            <p>✨ {getQuestRewards(difficulty).exp}</p>
-            <p>💎 {getQuestRewards(difficulty).gems}</p>
-          </div>
-          <Input label="Title" labelPlacement="inside" placeholder="New stage" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input 
+              size="lg"
+              placeholder="New stage" 
+              value={title} 
+              onChange={(e) => setTitle(e.target.value)} 
+              classNames={{
+                inputWrapper: ["bg-transparent active:bg-transparent data-[hover=true]:bg-transparent group-data-[focus=true]:bg-transparent focus:bg-transparent"],
+                input: ["!text-2xl font-bold"],
+              }}
+            />
           <Input label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
           <NumberInput minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
           <DateRangePicker label="Date range" labelPlacement="inside" value={dateRange} onChange={setDateRange} />
+          <div className='w-full flex flex-row gap-4 justify-center'>
+            <p>✨ {getQuestRewards(difficulty).exp}</p>
+            <p>💎 {getQuestRewards(difficulty).gems}</p>
+          </div>
           <Button type="submit">Confirm</Button>
         </div>
       </form>
@@ -214,11 +232,17 @@ const editStage = async (stage: Stage) => {
             onClick={() => { setSelectedStage(stage); setEditModalOpen(true); }}
           >
             <Card className="cardStyle w-[250px] h-[100px] shrink-0 p-4 cursor-pointer">
-              <div className="flex gap-1 w-full">
-                <h4>🔥</h4>
-                <h4 className="truncate">{stage.title}</h4>
+              <div className="flex justify-between items-center mb-1">
+                <div className="flex gap-1 items-center">
+                  <span>🔥</span>
+                  <h4 className="text-sm truncate">{stage.title}</h4>
+                </div>
+                <div className="flex gap-2 text-sm">
+                  <span>{stage.gems}💎</span>
+                  <span>{stage.exp}✨</span>
+                </div>
               </div>
-              <p className="truncate">{stage.description}</p>
+              <p className="text-sm line-clamp-2">{stage.description}</p>
             </Card>
             {/* Trashcan Icon */}
             <div
@@ -227,10 +251,9 @@ const editStage = async (stage: Stage) => {
                 e.stopPropagation();
                 setSelectedStage(stage);
                 setDeleteModalOpen(true);
-              }}>
-              <button>
-                🗑️
-              </button>
+              }}
+            >
+              <button>🗑️</button>
             </div>
           </div>
         ))}
@@ -240,7 +263,6 @@ const editStage = async (stage: Stage) => {
       <Modal placement="center" size="xl" isOpen={isOpen} onClose={() => setIsOpen(false)}>
         <ModalContent>
           <div className="flex flex-col gap-4 p-4">
-            <h3>New Stage</h3>
             <AddStageForm onSubmit={addStage} />
           </div>
         </ModalContent>
@@ -267,7 +289,6 @@ const editStage = async (stage: Stage) => {
       <Modal placement="center" size="xl" isOpen={editModalOpen} onClose={() => setEditModalOpen(false)}>
         <ModalContent>
           <div className="flex flex-col gap-4 p-4">
-            <h3>Edit Stage</h3>
             {selectedStage && (
               <EditStageForm 
                 stage={selectedStage}
