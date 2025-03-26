@@ -38,14 +38,16 @@ export default function Home() {
       <div className="flex w-full">
         <Stages />
       </div>
-      <div className="flex flex-row gap-4">
-        <Card className="cardStyle p-4 w-1/3">
+      <div className="flex flex-col md:flex-row gap-4">
+        <Card className="cardStyle p-4 w-full md:w-1/3">
           <PlayerStats />
         </Card>
-        <FocusTimer />
+        <Card className="cardStyle p-4 w-full md:w-2/3">
+          <FocusTimer />
+        </Card>
       </div>
-      <div className="flex flex-row gap-4">
-        <Card className="cardStyle p-4 w-2/3">
+      <div className="flex flex-col md:flex-row gap-4">
+        <Card className="cardStyle p-4 w-full md:w-2/3">
           <Tabs>
             <Tab key="quests" title="Quests">
               <Quests />
@@ -55,7 +57,7 @@ export default function Home() {
             </Tab>
           </Tabs>
         </Card>
-        <Card className="cardStyle p-4 w-1/3">
+        <Card className="cardStyle p-4 w-full md:w-1/3">
         <p>Daily view placeholder</p>
         </Card>
       </div>
