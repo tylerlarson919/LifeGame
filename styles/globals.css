@@ -54,6 +54,9 @@ p {
     background-color: #101010 !important;
   }
 
+  .dropdownStyle {
+    background-color: #18181a !important;
+  }
 
   @keyframes expandAndWiggle {
     0% {
