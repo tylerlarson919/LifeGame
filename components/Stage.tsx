@@ -2,7 +2,7 @@ import { Card } from '@heroui/card';
 import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
 import { Modal, ModalContent } from '@heroui/modal';
-import { addDocumentToCollection, deleteDocument, updateDocument, db } from '../firebase';
+import { addDocumentToCollection, deleteDocument, updateDocument, db, fetchStages } from '../firebase';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { useEffect, useState, useRef } from 'react';
 import { auth } from '../firebase';
@@ -12,7 +12,6 @@ import {NumberInput} from "@heroui/number-input";
 import {DateRangePicker} from "@heroui/date-picker";
 import { RangeValue } from "@react-types/shared";
 import { DateValue } from "@react-types/calendar";
-import { parseDate } from "@internationalized/date";
 import { getQuestRewards } from '../config/gameBalancing';
 import EmojiPicker, { Emoji, EmojiClickData, EmojiStyle, Theme } from 'emoji-picker-react';
 
@@ -24,34 +23,16 @@ const Stages = () => {
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
   const scrollRef = useRef<HTMLElement>(null);
 
-  const fetchStages = async () => {
-    if (auth.currentUser) {
-      const querySnapshot = await getDocs(
-        collection(db, `users/${auth.currentUser.uid}/stages`)
-      );
-      const data = querySnapshot.docs.map((doc) => {
-        const docData = doc.data();
-        return {
-          id: doc.id,
-          ...docData,
-          dateRange: docData.dateRange
-            ? {
-                start: parseDate(docData.dateRange.start),
-                end: parseDate(docData.dateRange.end),
-              }
-            : null,
-        } as Stage;
-      });
-      data.sort((a, b) => {
-        if (!a.dateRange || !b.dateRange) return a.dateRange ? 1 : -1; // Put nulls at the end
-        return a.dateRange.end.compare(b.dateRange.end);
-      });
-      setStages(data);
-    }
-  };
 
   useEffect(() => {
-    fetchStages();
+    const getStages = async () => {
+      if (auth.currentUser) {
+        const userId = auth.currentUser.uid;
+        const stagesData = await fetchStages(userId);
+        setStages(stagesData);
+      }
+    };
+    getStages();
   }, []);
 
   useEffect(() => {
@@ -87,7 +68,8 @@ const Stages = () => {
       };
       await addDocumentToCollection(auth.currentUser.uid, 'stages', serializedData);
       setIsOpen(false);
-      await fetchStages();
+      const stagesData = await fetchStages(auth.currentUser.uid);
+      setStages(stagesData); // Update state with fetched data
     }
   };
 
@@ -96,7 +78,8 @@ const Stages = () => {
 const deleteStage = async (stage: Stage) => {
   if (auth.currentUser) {
     await deleteDocument(auth.currentUser.uid, `stages/${stage.id}`);
-    await fetchStages();
+    const stagesData = await fetchStages(auth.currentUser.uid);
+    setStages(stagesData); // Update state with fetched data
   }
 };
 
@@ -106,15 +89,16 @@ const editStage = async (stage: Stage) => {
       ...stage,
       dateRange: stage.dateRange
         ? {
-            start: stage.dateRange.start.toString(), // Convert DateValue to ISO string
-            end: stage.dateRange.end.toString(),   // Convert DateValue to ISO string
+            start: stage.dateRange.start.toString(),
+            end: stage.dateRange.end.toString(),
           }
         : null,
       completed: stage.completed,
     };
     await updateDocument(auth.currentUser.uid, `stages/${stage.id}`, serializedData);
     setEditModalOpen(false);
-    await fetchStages();
+    const stagesData = await fetchStages(auth.currentUser.uid);
+    setStages(stagesData); // Update state with fetched data
   }
 };
 

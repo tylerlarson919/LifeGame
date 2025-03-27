@@ -1,6 +1,5 @@
-import { auth, db } from '../firebase';
+import { auth, listenToQuestsAndStages } from '../firebase';
 import { useEffect, useState, useRef } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
 import { parseDate } from "@internationalized/date";
 import { Stage, Quest } from '../types';
 
@@ -80,77 +79,48 @@ const PlayerStats = () => {
   }, [experience]);
 
 
-  
-  
-
-  const fetchStages = async () => {
+  useEffect(() => {
     if (auth.currentUser) {
-      const querySnapshot = await getDocs(
-        collection(db, `users/${auth.currentUser.uid}/stages`)
+      const userId = auth.currentUser.uid;
+      const { initialData, unsubscribe } = listenToQuestsAndStages(
+        userId,
+        ({ data, stagesData }: { data: any; stagesData: any }) => {
+          // Sort quests by dueDate
+          const sortedQuests = data.sort((a: any, b: any) =>
+            new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+          );
+          // Sort stages by dateRange.end
+          const sortedStages = stagesData.sort((a: any, b: any) => {
+            if (!a.dateRange || !b.dateRange) return a.dateRange ? 1 : -1;
+            return a.dateRange.end.compare(b.dateRange.end);
+          });
+          setQuests(sortedQuests);
+          setStages(sortedStages);
+        }
       );
-      const data = querySnapshot.docs.map((doc) => {
-        const docData = doc.data();
-        return {
-          id: doc.id,
-          ...docData,
-          dateRange: docData.dateRange
-            ? {
-                start: parseDate(docData.dateRange.start),
-                end: parseDate(docData.dateRange.end),
-              }
-            : null,
-        } as Stage;
-      });
-      data.sort((a, b) => {
+      // Set initial data from cache
+      const sortedInitialQuests = initialData.data.sort((a: any, b: any) =>
+        new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+      );
+      const sortedInitialStages = initialData.stagesData.sort((a: any, b: any) => {
         if (!a.dateRange || !b.dateRange) return a.dateRange ? 1 : -1;
         return a.dateRange.end.compare(b.dateRange.end);
       });
-      setStages(data);
+      setQuests(sortedInitialQuests);
+      setStages(sortedInitialStages);
+      return unsubscribe; // Cleanup listener on unmount
     }
-  };
-
-  const fetchQuests = async () => {
-    if (auth.currentUser) {
-      const querySnapshot = await getDocs(
-        collection(db, `users/${auth.currentUser.uid}/quests`)
-      );
-      const data = querySnapshot.docs.map((doc) => {
-        const docData = doc.data();
-        return {
-          id: doc.id,
-          ...docData,
-        } as Quest;
-      });
-      data.sort((a, b) => {
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      });
-      setQuests(data);
-    }
-  };
-  
-
-  // 1. Fetch stages and quests on mount.
-  useEffect(() => {
-    fetchStages();
-    fetchQuests();
   }, []);
 
 
   useEffect(() => {
     const handleTrigger = (e: CustomEvent<{ completed: boolean }>) => {
-      if (e.detail.completed) {
-        fetchStages();
-        fetchQuests();
-        if (xpBarRef.current) {
-          // Remove the class first to allow re-triggering
-          xpBarRef.current.classList.remove("expand-wiggle");
-          // Force reflow to restart the animation
-          void xpBarRef.current.offsetWidth;
-          xpBarRef.current.classList.add("expand-wiggle");
-        }
+      if (e.detail.completed && xpBarRef.current) {
+        xpBarRef.current.classList.remove("expand-wiggle");
+        void xpBarRef.current.offsetWidth;
+        xpBarRef.current.classList.add("expand-wiggle");
       }
     };
-  
     window.addEventListener('triggerQuestForProfile', handleTrigger as EventListener);
     return () => window.removeEventListener('triggerQuestForProfile', handleTrigger as EventListener);
   }, []);

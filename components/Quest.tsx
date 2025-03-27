@@ -1,11 +1,9 @@
 import { Card } from '@heroui/card';
 import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
-import { db, cacheChange } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
-import { deleteDocument, tweakValueOnDocument } from '../firebase';
 import { useEffect, useState } from 'react';
-import { auth } from '../firebase';
+import { auth, listenToQuestsAndStages, db, addDocumentToCollection, updateDocument, deleteDocument, tweakValueOnDocument } from '../firebase';
 import { Quest } from '../types';
 import { DatePicker } from '@heroui/date-picker';
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownSection, DropdownItem } from '@heroui/dropdown';
@@ -75,40 +73,24 @@ const Quests = () => {
 
   useEffect(() => {
     if (auth.currentUser) {
-      const unsubscribeQuests = onSnapshot(
-        collection(db, `users/${auth.currentUser.uid}/quests`),
-        (snapshot) => {
-          const data = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Quest[];
+      const userId = auth.currentUser.uid;
+      const { initialData, unsubscribe } = listenToQuestsAndStages(
+        userId,
+        ({ data, stagesData }: { data: Quest[]; stagesData: { id: string; title: string; completed: boolean }[] }) => {
           setQuests(data);
-        }
-      );
-
-      const unsubscribeStages = onSnapshot(
-        collection(db, `users/${auth.currentUser.uid}/stages`),
-        (snapshot) => {
-          const stagesData = snapshot.docs.map(doc => ({ 
-            id: doc.id, 
-            title: doc.data().title, 
-            completed: doc.data().completed 
-          }));
           setStages(stagesData);
         }
       );
-
-      return () => {
-        unsubscribeQuests();
-        unsubscribeStages();
-      };
+      setQuests(initialData.data);
+      setStages(initialData.stagesData);
+      return unsubscribe;
     }
   }, []);
 
 
   const addQuest = (data: Omit<Quest, 'id' | 'completed'> & { stageId: string }) => {
     if (auth.currentUser) {
-      cacheChange(
+      addDocumentToCollection(
         auth.currentUser.uid,
         'quests',
         {
@@ -129,7 +111,7 @@ const deleteQuest = async (quest: Quest) => {
 
 const editQuest = (quest: Quest) => {
   if (auth.currentUser) {
-    cacheChange(
+    updateDocument(
       auth.currentUser.uid,
       `quests/${quest.id}`,
       {
@@ -456,6 +438,10 @@ const QuestItem = ({ quest }: { quest: Quest }) => {
     };
     updateQuest();
   }, [questCompleted]);
+
+  React.useEffect(() => {
+    setQuestCompleted(quest.completed);
+  }, [quest.completed]);
 
   return (
     <div

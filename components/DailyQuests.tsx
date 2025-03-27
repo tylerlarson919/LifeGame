@@ -1,10 +1,9 @@
 import { Card } from '@heroui/card';
 import { Button } from '@heroui/button';
-import { db, cacheChange } from '../firebase';
+import { db, auth, addDocumentToCollection } from '../firebase';
 import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import AddItemPopup from './AddItemPopup';
-import { auth } from '../firebase';
 import { DailyQuest } from '../types';
 
 const DailyQuests = () => {
@@ -29,7 +28,7 @@ const DailyQuests = () => {
 
   const addDailyQuest = (data: Omit<DailyQuest, 'id' | 'completed'>) => {
     if (auth.currentUser) {
-      cacheChange(
+      addDocumentToCollection(
         auth.currentUser.uid,
         `dailyQuests`,
         { ...data, completed: false }
