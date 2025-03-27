@@ -17,6 +17,8 @@ export interface Stage {
   hearts: number;
   gems: number;
   completed: boolean;
+  emoji: string;
+
 }
 
 export interface Quest {
@@ -31,6 +33,7 @@ export interface Quest {
   exp: number;
   gems: number;
   completed: boolean;
+  emoji: string;
 }
 
 export interface DailyQuest {

@@ -1,9 +1,9 @@
 import { Card } from '@heroui/card';
 import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
-import { db } from '../firebase';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
-import { addDocumentToCollection, deleteDocument, updateDocument, tweakValueOnDocument } from '../firebase';
+import { db, cacheChange } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { deleteDocument, tweakValueOnDocument } from '../firebase';
 import { useEffect, useState } from 'react';
 import { auth } from '../firebase';
 import { Quest } from '../types';
@@ -20,6 +20,7 @@ import { Chip } from '@heroui/chip';
 import { Checkbox } from '@heroui/checkbox';
 import { triggerQuestForProfile } from './PlayerStats';
 import { FaArrowRightToBracket } from "react-icons/fa6";
+import EmojiPicker, { Emoji, EmojiClickData, EmojiStyle, Theme } from 'emoji-picker-react';
 
 
 const Quests = () => {
@@ -72,53 +73,50 @@ const Quests = () => {
     });
   };
 
-  const toggleQuestCompletion = async (quest: Quest) => {
-    if (auth.currentUser) {
-      const updatedQuest = { ...quest, completed: !quest.completed };
-      await updateDocument(auth.currentUser.uid, `quests/${quest.id}`, updatedQuest);
-      await fetchQuests();
-    }
-  };
-
-
-  const fetchStages = async () => {
-    if (auth.currentUser) {
-      const querySnapshot = await getDocs(collection(db, `users/${auth.currentUser.uid}/stages`));
-      const stagesData = querySnapshot.docs.map(doc => ({ id: doc.id, title: doc.data().title, completed: doc.data().completed }));
-      setStages(stagesData);
-    }
-  };
-  
   useEffect(() => {
-    fetchStages();
-  }, []);
-
-  const fetchQuests = async () => {
     if (auth.currentUser) {
-      const querySnapshot = await getDocs(
-        collection(db, `users/${auth.currentUser.uid}/quests`)
+      const unsubscribeQuests = onSnapshot(
+        collection(db, `users/${auth.currentUser.uid}/quests`),
+        (snapshot) => {
+          const data = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Quest[];
+          setQuests(data);
+        }
       );
-      const data = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Quest[];
-      setQuests(data);
-    }
-  };
 
-  useEffect(() => {
-    fetchQuests();
+      const unsubscribeStages = onSnapshot(
+        collection(db, `users/${auth.currentUser.uid}/stages`),
+        (snapshot) => {
+          const stagesData = snapshot.docs.map(doc => ({ 
+            id: doc.id, 
+            title: doc.data().title, 
+            completed: doc.data().completed 
+          }));
+          setStages(stagesData);
+        }
+      );
+
+      return () => {
+        unsubscribeQuests();
+        unsubscribeStages();
+      };
+    }
   }, []);
 
 
-  const addQuest = async (data: Omit<Quest, 'id' | 'completed'> & { stageId: string }) => {
+  const addQuest = (data: Omit<Quest, 'id' | 'completed'> & { stageId: string }) => {
     if (auth.currentUser) {
-      await addDocumentToCollection(auth.currentUser.uid, 'quests', {
-        ...data,
-        completed: false,
-      });
+      cacheChange(
+        auth.currentUser.uid,
+        'quests',
+        {
+          ...data,
+          completed: false,
+        }
+      );
       setIsOpen(false);
-      await fetchQuests();
     }
   };
 
@@ -126,18 +124,20 @@ const Quests = () => {
 const deleteQuest = async (quest: Quest) => {
   if (auth.currentUser) {
     await deleteDocument(auth.currentUser.uid, `quests/${quest.id}`);
-    await fetchQuests();
   }
 };
 
-const editQuest = async (quest: Quest) => {
+const editQuest = (quest: Quest) => {
   if (auth.currentUser) {
-    await updateDocument(auth.currentUser.uid, `quests/${quest.id}`, {
-      ...quest,
-      completed: quest.completed,
-    });
+    cacheChange(
+      auth.currentUser.uid,
+      `quests/${quest.id}`,
+      {
+        ...quest,
+        completed: quest.completed,
+      }
+    );
     setEditModalOpen(false);
-    await fetchQuests();
   }
 };
 
@@ -171,6 +171,13 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
   const [selectedStage, setSelectedStage] = useState<string>('');
   const [selectedStageName, setSelectedStageName] = useState<string>('');
   const [difficulty, setDifficulty] = useState(1);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [selectedEmoji, setSelectedEmoji] = useState('1f525');
+
+  const handleEmojiClick = (emojiObject: EmojiClickData, event: MouseEvent) => {
+    setSelectedEmoji(emojiObject.unified);
+    setEmojiPickerOpen(false);
+  };
 
   useEffect(() => {
     const rewards = getQuestRewards(difficulty);
@@ -192,7 +199,7 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
     e.preventDefault();
     if (title && description && dueDate) {
       const dueDateUTC = dueDate.toDate(getLocalTimeZone()).toISOString();
-      onSubmit({ title, description, dueDate: dueDateUTC, exp, hearts, gems, difficulty, stageId: selectedStage, stageName: selectedStageName });
+      onSubmit({ title, description, dueDate: dueDateUTC, exp, hearts, gems, difficulty, stageId: selectedStage, emoji: selectedEmoji, stageName: selectedStageName });
     }
   };
   
@@ -200,21 +207,37 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
   return (
     <form onSubmit={handleSubmit}>
       <div className="flex flex-col gap-4">
-        <Input 
-          id="edit-quest-title"
-          name="title"
-          size="lg"
-          placeholder="New quest" 
-          value={title} 
-          onChange={(e) => setTitle(e.target.value)} 
-          classNames={{
-            inputWrapper: ["bg-transparent active:bg-transparent data-[hover=true]:bg-transparent group-data-[focus=true]:bg-transparent focus:bg-transparent"],
-            input: ["!text-2xl font-bold"],
-          }}
-        />
-        <Input id="quest-description" name="description" label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
+        <div className='flex flex-row gap-2 items-center'>
+          <div className="relative inline-block">
+            <div
+              className="cursor-pointer text-2xl"
+              onClick={() => setEmojiPickerOpen((prev) => !prev)}
+            >
+              <Emoji emojiStyle={EmojiStyle.APPLE} unified={selectedEmoji} size={25} />
+            </div>
+            {emojiPickerOpen && (
+              <div className="absolute top-10 left-0 z-50 shadow-lg w-fit h-fit">
+                <EmojiPicker emojiStyle={EmojiStyle.APPLE} theme={Theme.DARK} onEmojiClick={handleEmojiClick} />
+              </div>
+            )}
+          </div>
+          <Input 
+            id="edit-quest-title"
+            name="title"
+            size="lg"
+            placeholder="New quest" 
+            value={title} 
+            onChange={(e) => setTitle(e.target.value)} 
+            classNames={{
+              inputWrapper: ["bg-transparent active:bg-transparent data-[hover=true]:bg-transparent group-data-[focus=true]:bg-transparent focus:bg-transparent"],
+              input: ["!text-2xl font-bold"],
+            }}
+          />
+        </div>
+        <Input id="quest-description" aria-labelledby="quest-description-label" name="description" label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
         <DatePicker
           id="edit-quest-due-date"
+          aria-labelledby="edit-quest-due-date-label"
           name="dueDate"
           granularity="minute"
           hideTimeZone
@@ -225,8 +248,9 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
         />
         <div className="flex flex-row gap-4 w-full justify-center items-center">
             <Dropdown>
-              <DropdownTrigger id="stage-dropdown-btn">
+              <DropdownTrigger>
                 <Button 
+                  id="stage-dropdown-btn"
                   size="lg" 
                   variant="flat" 
                   className='w-1/2 h-[56px]'
@@ -257,7 +281,7 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
                 </DropdownSection>
               </DropdownMenu>
             </Dropdown>
-          <NumberInput className="w-1/2" minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
+          <NumberInput id="difficulty-level" aria-labelledby="difficulty-label" className="w-1/2" minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
         </div>
         <div className='w-full flex flex-row gap-4 justify-center'>
           <p>✨ {getQuestRewards(difficulty).exp}</p>
@@ -292,6 +316,13 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
   const [selectedStage, setSelectedStage] = useState<string>(stage.stageId || '');
   const [selectedStageName, setSelectedStageName] = useState<string>(stage.stageName || '');
   const [difficulty, setDifficulty] = useState(stage.difficulty);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [selectedEmoji, setSelectedEmoji] = useState<string>(stage.emoji || '1f525');
+
+  const handleEmojiClick = (emojiObject: EmojiClickData, event: MouseEvent) => {
+    setSelectedEmoji(emojiObject.unified);
+    setEmojiPickerOpen(false);
+  };
 
   useEffect(() => {
     const rewards = getQuestRewards(difficulty);
@@ -312,7 +343,7 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
     e.preventDefault();
     if (title && description && dueDate) {
       const dueDateUTC = dueDate.toDate(getLocalTimeZone()).toISOString();
-      onSubmit({ title, description, dueDate: dueDateUTC, exp, hearts, gems, difficulty, stageId: selectedStage, stageName: selectedStageName });
+      onSubmit({ title, description, dueDate: dueDateUTC, exp, hearts, gems, difficulty, emoji: selectedEmoji, stageId: selectedStage, stageName: selectedStageName });
     }
   };
   
@@ -320,21 +351,37 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
   return (
     <form onSubmit={handleSubmit}>
       <div className="flex flex-col gap-4">
-        <Input 
-          id="edit-quest-title"
-          name="title"
-          size="lg"
-          placeholder="New quest" 
-          value={title} 
-          onChange={(e) => setTitle(e.target.value)} 
-          classNames={{
-            inputWrapper: ["bg-transparent active:bg-transparent data-[hover=true]:bg-transparent group-data-[focus=true]:bg-transparent focus:bg-transparent"],
-            input: ["!text-2xl font-bold"],
-          }}
-        />
-        <Input id="quest-description" name="description" label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
+        <div className='flex flex-row gap-2 items-center'>
+          <div className="relative inline-block">
+            <div
+              className="cursor-pointer text-2xl"
+              onClick={() => setEmojiPickerOpen((prev) => !prev)}
+            >
+              <Emoji emojiStyle={EmojiStyle.APPLE} unified={selectedEmoji} size={25} />
+            </div>
+            {emojiPickerOpen && (
+              <div className="absolute top-10 left-0 z-50 shadow-lg w-fit h-fit">
+                <EmojiPicker emojiStyle={EmojiStyle.APPLE} theme={Theme.DARK} onEmojiClick={handleEmojiClick} />
+              </div>
+            )}
+          </div>
+          <Input 
+            id="edit-quest-title"
+            name="title"
+            size="lg"
+            placeholder="New quest" 
+            value={title} 
+            onChange={(e) => setTitle(e.target.value)} 
+            classNames={{
+              inputWrapper: ["bg-transparent active:bg-transparent data-[hover=true]:bg-transparent group-data-[focus=true]:bg-transparent focus:bg-transparent"],
+              input: ["!text-2xl font-bold"],
+            }}
+          />
+        </div>
+        <Input id="quest-description" aria-labelledby="quest-description-label" name="description" label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
         <DatePicker
           id="edit-quest-due-date"
+          aria-labelledby="edit-quest-due-date-label"
           name="dueDate"
           granularity="minute"
           hideTimeZone
@@ -345,8 +392,9 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
         />
         <div className="flex flex-row gap-4 w-full justify-center items-center">
             <Dropdown>
-              <DropdownTrigger id="edit-stage-dropdown-btn">
+              <DropdownTrigger >
                 <Button 
+                    id="edit-stage-dropdown-btn"
                     size="lg" 
                     variant="flat" 
                     className='w-1/2 h-[56px]'
@@ -393,16 +441,19 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
 
 const QuestItem = ({ quest }: { quest: Quest }) => {
   const [questCompleted, setQuestCompleted] = useState(quest.completed);
+  const initialRender = React.useRef(true);
 
-  useEffect(() => {
+  React.useEffect(() => {
+    if (initialRender.current) {
+      initialRender.current = false;
+      return;
+    }
     const updateQuest = async () => {
       if (auth.currentUser) {
         await tweakValueOnDocument(auth.currentUser.uid, `quests/${quest.id}`, 'completed', questCompleted);
         triggerQuestForProfile(questCompleted);
-        await fetchQuests();
       }
     };
-
     updateQuest();
   }, [questCompleted]);
 
@@ -432,7 +483,7 @@ const QuestItem = ({ quest }: { quest: Quest }) => {
             />
           </div>
           <div className="flex gap-1 items-center">
-            <span>🔥</span>
+            <Emoji emojiStyle={EmojiStyle.APPLE} unified={quest.emoji} size={25} />
             <h4 className="text-sm truncate">{quest.title}</h4>
           </div>
         </div>
@@ -471,8 +522,8 @@ const QuestItem = ({ quest }: { quest: Quest }) => {
         <div className="flex justify-between items-center">
           <div className="flex items-center w-full">
             <Dropdown>
-              <DropdownTrigger id="time-filter-dropdown">
-                <Button className='w-full justify-start border-none' variant="bordered"><h3 className='text-left'>{selectedFilterKeys}</h3></Button>
+              <DropdownTrigger>
+                <Button id="time-filter-dropdown" className='w-full justify-start border-none' variant="bordered"><h3 className='text-left'>{selectedFilterKeys}</h3></Button>
               </DropdownTrigger>
               <DropdownMenu 
                 aria-labelledby="time-filter-dropdown" 
@@ -502,8 +553,8 @@ const QuestItem = ({ quest }: { quest: Quest }) => {
         </ScrollShadow>
 
         {/* New Quest Modal */}
-        <Modal placement="center" size="xl" isOpen={isOpen} onClose={() => setIsOpen(false)}>
-          <ModalContent>
+        <Modal classNames={{ base: "overflow-visable", }} placement="center" size="xl" isOpen={isOpen} onClose={() => setIsOpen(false)}>
+          <ModalContent className="overflow-visible">
             <div className="flex flex-col gap-4 p-4">
               <AddQuestForm onSubmit={addQuest} stages={stages} />
             </div>
@@ -528,8 +579,8 @@ const QuestItem = ({ quest }: { quest: Quest }) => {
         </Modal>
 
         {/* Edit Quest Modal */}
-        <Modal placement="center" size="xl" isOpen={editModalOpen} onClose={() => setEditModalOpen(false)}>
-          <ModalContent>
+        <Modal classNames={{ base: "overflow-visable", }} placement="center" size="xl" isOpen={editModalOpen} onClose={() => setEditModalOpen(false)}>
+          <ModalContent className="overflow-visible">
             <div className="flex flex-col gap-4 p-4">
               {selectedQuest && (
                 <EditQuestForm 

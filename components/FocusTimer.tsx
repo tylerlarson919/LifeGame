@@ -21,16 +21,41 @@ const FocusTimer = () => {
   const [tag, setTag] = React.useState<string | null>(null);
   const [note, setNote] = useState('');
   const [time, setTime] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
+  const [timerState, setTimerState] = useState<'stopped' | 'running' | 'paused'>('stopped');  
   const [quests, setQuests] = useState<Quest[]>([]);
   const [questLink, setQuestLink] = useState(false);
   const [selectedQuest, setSelectedQuest] = useState<string | null>(null);
 
-  const startStopwatch = () => {
-    setIsRunning(!isRunning);
-    if (!isRunning) {
-      setInterval(() => setTime((prev) => prev + 1), 1000);
+  const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout | undefined;
+    if (timerState === 'running') {
+      interval = setInterval(() => {
+        setTime((prev) => prev + 1);
+      }, 1000);
     }
+    return () => clearInterval(interval);
+  }, [timerState]);
+
+  const timerStart = () => {
+    setTimerState('running');
+  };
+  
+  const triggerTimerPause = () => {
+    if (timerState === 'running') {
+      setTimerState('paused');
+    }
+  };
+  
+  const timerEnd = () => {
+    setTimerState('stopped');
+    setTime(0);
   };
 
     const fetchQuests = async () => {
@@ -54,21 +79,15 @@ const FocusTimer = () => {
       <Tabs className='w-full'>
         <Tab key="stopwatch" title="Stopwatch">
           <div className='flex flex-col gap-4 w-full'>
-            <div className='flex gap-4 w-full'>
-              <TagSelect
-                className="w-1/2"
-                id="tag"
-                placeholder="New tag"
-                selectedKeys={tag ? new Set([tag]) : new Set()}
-                onSelectionChange={(keys) => setTag(Array.from(keys)[0] as string)}
-                tags={userTags}
-              />
-              <div className='w-1/2'>
+            <div className='flex flex-col gap-4 w-full justify-center items-center'>
+              <div className='w-fit'>
                   <Dropdown>
-                    <DropdownTrigger id="quest-link-btn">
-                      <Chip variant="dot" color="secondary" className='cursor-pointer'>
-                        {questLink ? quests.find(s => s.id === selectedQuest)?.title || "Select Quest" : "No Quest"}
-                      </Chip>
+                    <DropdownTrigger >
+                      <span id="quest-link-btn">
+                        <Chip variant="dot" color="secondary" className='cursor-pointer'>
+                          {questLink ? quests.find(s => s.id === selectedQuest)?.title || "Select Quest" : "No Quest"}
+                        </Chip>
+                      </span>
                     </DropdownTrigger>
                     <DropdownMenu 
                       aria-labelledby="quest-link-btn" 
@@ -91,14 +110,33 @@ const FocusTimer = () => {
                     </DropdownMenu>
                   </Dropdown>
               </div>
+              <TagSelect
+                className="w-1/2"
+                id="tag"
+                placeholder="New tag"
+                selectedKeys={tag ? new Set([tag]) : new Set()}
+                onSelectionChange={(keys) => setTag(Array.from(keys)[0] as string)}
+                tags={userTags}
+              />
             </div>
-            <Input
-              placeholder="Note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-            <p>{time} seconds</p>
-            <Button variant="bordered" onPress={startStopwatch}>{isRunning ? 'Stop' : 'Start'} </Button>
+            <div className='w-full flex flex-col gap-4 justify-center items-center'>
+              <h3>{formatTime(time)}</h3>
+              {timerState === 'stopped' && (
+                <Button variant="bordered"  onPress={timerStart}>Start</Button>
+              )}
+              {timerState === 'running' && (
+                <div className="flex gap-2">
+                  <Button variant="bordered" onPress={triggerTimerPause}>Pause</Button>
+                  <Button variant="bordered" onPress={timerEnd}>Stop</Button>
+                </div>
+              )}
+              {timerState === 'paused' && (
+                <div className="flex gap-2">
+                  <Button variant="bordered" onPress={timerStart}>Resume</Button>
+                  <Button variant="bordered" onPress={timerEnd}>Stop</Button>
+                </div>
+              )}
+            </div>
           </div>
         </Tab>
         <Tab key="timer" title="Timer">

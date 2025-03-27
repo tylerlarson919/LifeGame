@@ -1,7 +1,7 @@
 import { Card } from '@heroui/card';
 import { Button } from '@heroui/button';
-import { db } from '../firebase';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
+import { db, cacheChange } from '../firebase';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import AddItemPopup from './AddItemPopup';
 import { auth } from '../firebase';
@@ -12,27 +12,28 @@ const DailyQuests = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    const fetchDailyQuests = async () => {
-      if (auth.currentUser) {
-        const querySnapshot = await getDocs(
-          collection(db, `users/${auth.currentUser.uid}/dailyQuests`)
-        );
-        const data = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as DailyQuest[];
-        setDailyQuests(data);
-      }
-    };
-    fetchDailyQuests();
+    if (auth.currentUser) {
+      const unsubscribe = onSnapshot(
+        collection(db, `users/${auth.currentUser.uid}/dailyQuests`),
+        (snapshot) => {
+          const data = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as DailyQuest[];
+          setDailyQuests(data);
+        }
+      );
+      return () => unsubscribe();
+    }
   }, []);
 
-  const addDailyQuest = async (data: Omit<DailyQuest, 'id' | 'completed'>) => {
+  const addDailyQuest = (data: Omit<DailyQuest, 'id' | 'completed'>) => {
     if (auth.currentUser) {
-      await addDoc(collection(db, `users/${auth.currentUser.uid}/dailyQuests`), {
-        ...data,
-        completed: false,
-      });
+      cacheChange(
+        auth.currentUser.uid,
+        `dailyQuests`,
+        { ...data, completed: false }
+      );
       setIsOpen(false);
     }
   };

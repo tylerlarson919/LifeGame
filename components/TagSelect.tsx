@@ -61,11 +61,12 @@ const TagSelect: React.FC<TagSelectProps> = ({
 
   return (
     <div className={`relative ${className || ''}`} ref={wrapperRef}>
-      {label && <label htmlFor={id}>{label}</label>}
+      {label && <label htmlFor={id} id={`${id}-label`}>{label}</label>}
       <Input
         id={id}
         placeholder={placeholder}
         value={inputValue}
+        aria-labelledby={label ? `${id}-label` : undefined}
         onFocus={() => setShowDropdown(true)}
         onChange={(e) => {
           setInputValue(e.target.value);

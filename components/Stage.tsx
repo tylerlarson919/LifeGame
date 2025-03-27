@@ -14,6 +14,7 @@ import { RangeValue } from "@react-types/shared";
 import { DateValue } from "@react-types/calendar";
 import { parseDate } from "@internationalized/date";
 import { getQuestRewards } from '../config/gameBalancing';
+import EmojiPicker, { Emoji, EmojiClickData, EmojiStyle, Theme } from 'emoji-picker-react';
 
 const Stages = () => {
   const [stages, setStages] = useState<Stage[]>([]);
@@ -135,6 +136,13 @@ const editStage = async (stage: Stage) => {
     const [hearts, setHearts] = useState(1);
     const [exp, setExp] = useState(1);
     const [gems, setGems] = useState(1);
+    const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+    const [selectedEmoji, setSelectedEmoji] = useState('1f525');
+
+      const handleEmojiClick = (emojiObject: EmojiClickData, event: MouseEvent) => {
+        setSelectedEmoji(emojiObject.unified);
+        setEmojiPickerOpen(false);
+      };
 
       useEffect(() => {
         const rewards = getQuestRewards(difficulty);
@@ -145,7 +153,7 @@ const editStage = async (stage: Stage) => {
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (title && description) {
-        onSubmit({ title, description, dateRange, difficulty, exp, hearts, gems });
+        onSubmit({ title, description, dateRange, difficulty, emoji: selectedEmoji, exp, hearts, gems });
       }
     };
 
@@ -154,16 +162,31 @@ const editStage = async (stage: Stage) => {
     return (
       <form onSubmit={handleSubmit}>
         <div className="flex flex-col gap-4">
-          <Input 
-            size="lg"
-            placeholder="New stage" 
-            value={title} 
-            onChange={(e) => setTitle(e.target.value)} 
-            classNames={{
-              inputWrapper: ["bg-transparent active:bg-transparent data-[hover=true]:bg-transparent group-data-[focus=true]:bg-transparent focus:bg-transparent"],
-              input: ["!text-2xl font-bold"],
-            }}
-          />
+          <div className='flex flex-row gap-2 items-center'>
+            <div className="relative inline-block">
+              <div
+                className="cursor-pointer text-2xl"
+                onClick={() => setEmojiPickerOpen((prev) => !prev)}
+              >
+                <Emoji emojiStyle={EmojiStyle.APPLE} unified={selectedEmoji} size={25} />
+              </div>
+              {emojiPickerOpen && (
+                <div className="absolute top-10 left-0 z-50 shadow-lg w-fit h-fit">
+                  <EmojiPicker emojiStyle={EmojiStyle.APPLE} theme={Theme.DARK} onEmojiClick={handleEmojiClick} />
+                </div>
+              )}
+            </div>
+            <Input 
+              size="lg"
+              placeholder="New stage" 
+              value={title} 
+              onChange={(e) => setTitle(e.target.value)} 
+              classNames={{
+                inputWrapper: ["bg-transparent active:bg-transparent data-[hover=true]:bg-transparent group-data-[focus=true]:bg-transparent focus:bg-transparent"],
+                input: ["!text-2xl font-bold"],
+              }}
+            />
+          </div>
           <Input label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
           <NumberInput minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
           <DateRangePicker label="Date range" labelPlacement="inside" value={dateRange} onChange={setDateRange} />
@@ -184,6 +207,13 @@ const editStage = async (stage: Stage) => {
     const [hearts, setHearts] = useState(stage.hearts);
     const [exp, setExp] = useState(stage.exp);
     const [gems, setGems] = useState(stage.gems);
+    const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+    const [selectedEmoji, setSelectedEmoji] = useState<string>(stage.emoji || '1f525');
+
+      const handleEmojiClick = (emojiObject: EmojiClickData, event: MouseEvent) => {
+        setSelectedEmoji(emojiObject.unified);
+        setEmojiPickerOpen(false);
+      };
 
       useEffect(() => {
         const rewards = getQuestRewards(difficulty);
@@ -194,13 +224,27 @@ const editStage = async (stage: Stage) => {
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (title && description) {
-        onSubmit({ title, description, dateRange, difficulty, exp, hearts, gems });
+        onSubmit({ title, description, dateRange, difficulty, emoji: selectedEmoji, exp, hearts, gems });
       }
     };
 
     return (
       <form onSubmit={handleSubmit}>
         <div className="flex flex-col gap-4">
+          <div className='flex flex-row gap-2 items-center'>
+            <div className="relative inline-block">
+              <div
+                className="cursor-pointer text-2xl"
+                onClick={() => setEmojiPickerOpen((prev) => !prev)}
+              >
+                <Emoji emojiStyle={EmojiStyle.APPLE} unified={selectedEmoji} size={25} />
+              </div>
+              {emojiPickerOpen && (
+                <div className="absolute top-10 left-0 z-50 shadow-lg w-fit h-fit">
+                  <EmojiPicker emojiStyle={EmojiStyle.APPLE} theme={Theme.DARK} onEmojiClick={handleEmojiClick} />
+                </div>
+              )}
+            </div>
             <Input 
               size="lg"
               placeholder="New stage" 
@@ -211,6 +255,7 @@ const editStage = async (stage: Stage) => {
                 input: ["!text-2xl font-bold"],
               }}
             />
+          </div>
           <Input label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
           <NumberInput minValue={1} maxValue={10} label="Difficulty" labelPlacement="inside" value={difficulty} onValueChange={setDifficulty} />
           <DateRangePicker label="Date range" labelPlacement="inside" value={dateRange} onChange={setDateRange} />
@@ -245,7 +290,7 @@ const editStage = async (stage: Stage) => {
             <Card className="cardStyle w-[250px] h-[100px] shrink-0 p-4 cursor-pointer">
               <div className="flex justify-between items-center mb-1">
                 <div className="flex gap-1 items-center">
-                  <span>🔥</span>
+                  <Emoji emojiStyle={EmojiStyle.APPLE} unified={stage.emoji} size={25} />
                   <h4 className="text-sm truncate">{stage.title}</h4>
                 </div>
                 <div className="flex gap-2 text-sm">
@@ -271,8 +316,8 @@ const editStage = async (stage: Stage) => {
       </ScrollShadow>
 
       {/* New Stage Modal */}
-      <Modal placement="center" size="xl" isOpen={isOpen} onClose={() => setIsOpen(false)}>
-        <ModalContent>
+      <Modal classNames={{ base: "overflow-visable", }} placement="center" size="xl" isOpen={isOpen} onClose={() => setIsOpen(false)}>
+        <ModalContent className="overflow-visible">
           <div className="flex flex-col gap-4 p-4">
             <AddStageForm onSubmit={addStage} />
           </div>
@@ -297,8 +342,8 @@ const editStage = async (stage: Stage) => {
       </Modal>
 
       {/* Edit Stage Modal */}
-      <Modal placement="center" size="xl" isOpen={editModalOpen} onClose={() => setEditModalOpen(false)}>
-        <ModalContent>
+      <Modal classNames={{ base: "overflow-visable", }} placement="center" size="xl" isOpen={editModalOpen} onClose={() => setEditModalOpen(false)}>
+        <ModalContent className="overflow-visible">
           <div className="flex flex-col gap-4 p-4">
             {selectedStage && (
               <EditStageForm 
