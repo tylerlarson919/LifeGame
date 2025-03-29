@@ -28,7 +28,8 @@ export interface Quest {
   title: string;
   description: string;
   difficulty: number;
-  dueDate: string;
+  startDate: string; // ISO string
+  endDate: string; // ISO string
   hearts: number;
   exp: number;
   gems: number;

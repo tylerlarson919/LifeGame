@@ -5,7 +5,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { auth, listenToQuestsAndStages, db, addDocumentToCollection, updateDocument, deleteDocument, tweakValueOnDocument } from '../firebase';
 import { Quest } from '../types';
-import { DatePicker } from '@heroui/date-picker';
+import { DateRangePicker } from '@heroui/date-picker';
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownSection, DropdownItem } from '@heroui/dropdown';
 import React from "react";
 import {parseDate, getLocalTimeZone, CalendarDate} from "@internationalized/date";
@@ -19,6 +19,7 @@ import { Checkbox } from '@heroui/checkbox';
 import { triggerQuestForProfile } from './PlayerStats';
 import { FaArrowRightToBracket } from "react-icons/fa6";
 import EmojiPicker, { Emoji, EmojiClickData, EmojiStyle, Theme } from 'emoji-picker-react';
+import { RangeValue } from "@react-types/shared";
 
 
 const Quests = () => {
@@ -38,26 +39,27 @@ const Quests = () => {
     [selectedFilterValue],
   );
 
-    const filteredQuests = React.useMemo(() => {
-        const filterKey = Array.from(selectedFilterValue)[0];
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(today.getDate() + 1);
-    
-        return quests.filter(quest => {
-          const questDate = new Date(quest.dueDate);
-          questDate.setHours(0, 0, 0, 0);
-          if (filterKey === "today") {
-            return questDate.getTime() === today.getTime() && !quest.completed;
-          } else if (filterKey === "todays_context") {
-            return questDate.getTime() === today.getTime();
-          } else if (filterKey === "tomorrow") {
-            return questDate.getTime() === tomorrow.getTime() && !quest.completed;
-          }
-          return true;
-        });
-      }, [quests, selectedFilterValue]);
+  const filteredQuests = React.useMemo(() => {
+    const filterKey = Array.from(selectedFilterValue)[0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+  
+    return quests.filter(quest => {
+      if (!quest.startDate) return false; // Handle missing startDate
+      const questDate = new Date(quest.startDate);
+      questDate.setHours(0, 0, 0, 0);
+      if (filterKey === "today") {
+        return questDate.getTime() === today.getTime() && !quest.completed;
+      } else if (filterKey === "todays_context") {
+        return questDate.getTime() === today.getTime();
+      } else if (filterKey === "tomorrow") {
+        return questDate.getTime() === tomorrow.getTime() && !quest.completed;
+      }
+      return true;
+    });
+  }, [quests, selectedFilterValue]);
 
   const formatDueDate = (utcDateString: string) => {
     const date = new Date(utcDateString);
@@ -140,16 +142,18 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
   const [exp, setExp] = useState(1);
   const [gems, setGems] = useState(1);
   const now = new Date();
-  const [dueDate, setDueDate] = React.useState<CalendarDateTime | null>(
-    new CalendarDateTime(
-      now.getFullYear(),
-      now.getMonth() + 1, // getMonth() returns 0-11, CalendarDateTime expects 1-12
-      now.getDate(),
-      now.getHours(),
-      now.getMinutes(),
-      now.getSeconds()
-    )
+  const currentDateTime = new CalendarDateTime(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    now.getDate(),
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds()
   );
+  const [dateRange, setDateRange] = React.useState<RangeValue<CalendarDateTime>>({
+    start: currentDateTime,
+    end: currentDateTime,
+  });
   const [selectedStage, setSelectedStage] = useState<string>('');
   const [selectedStageName, setSelectedStageName] = useState<string>('');
   const [difficulty, setDifficulty] = useState(1);
@@ -176,12 +180,13 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
     }
   }, [selectedStage, stages]);
 
-
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (title && description && dueDate) {
-      const dueDateUTC = dueDate.toDate(getLocalTimeZone()).toISOString();
-      onSubmit({ title, description, dueDate: dueDateUTC, exp, hearts, gems, difficulty, stageId: selectedStage, emoji: selectedEmoji, stageName: selectedStageName });
+    if (title && description && dateRange && dateRange.start && dateRange.end) {
+      const startDateUTC = dateRange.start.toDate(getLocalTimeZone()).toISOString();
+      const endDateUTC = dateRange.end.toDate(getLocalTimeZone()).toISOString();
+      onSubmit({ title, description, startDate: startDateUTC, endDate: endDateUTC, exp, hearts, gems, difficulty, stageId: selectedStage, emoji: selectedEmoji, stageName: selectedStageName });
     }
   };
   
@@ -217,16 +222,17 @@ const AddQuestForm: React.FC<AddQuestFormProps> = ({ onSubmit }) => {
           />
         </div>
         <Input id="quest-description" aria-labelledby="quest-description-label" name="description" label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
-        <DatePicker
-          id="edit-quest-due-date"
-          aria-labelledby="edit-quest-due-date-label"
-          name="dueDate"
+        <DateRangePicker
+          id="edit-quest-date-range"
+          aria-labelledby="edit-quest-date-range-label"
           granularity="minute"
           hideTimeZone
-          label="Due Date"
+          label="Date Range"
           labelPlacement="inside"
-          value={dueDate}
-          onChange={setDueDate}
+          value={dateRange}
+          onChange={(value) => {
+            if (value) setDateRange(value);
+          }}
         />
         <div className="flex flex-row gap-4 w-full justify-center items-center">
             <Dropdown>
@@ -280,19 +286,32 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
   const [hearts, setHearts] = useState(stage.hearts);
   const [exp, setExp] = useState(stage.exp);
   const [gems, setGems] = useState(stage.gems);
-  const [dueDate, setDueDate] = useState<CalendarDateTime | null>(
-    stage.dueDate
-      ? (() => {
-          const date = new Date(stage.dueDate);
-          return new CalendarDateTime(
-            date.getFullYear(),
-            date.getMonth() + 1, // getMonth() returns 0-11, CalendarDateTime expects 1-12
-            date.getDate(),
-            date.getHours(),
-            date.getMinutes(),
-            date.getSeconds()
-          );
-        })()
+  const [dateRange, setDateRange] = useState<RangeValue<CalendarDateTime> | null>(
+    stage.startDate && stage.endDate // Errors here
+      ? {
+          start: (() => {
+            const date = new Date(stage.startDate);
+            return new CalendarDateTime(
+              date.getFullYear(),
+              date.getMonth() + 1,
+              date.getDate(),
+              date.getHours(),
+              date.getMinutes(),
+              date.getSeconds()
+            );
+          })(),
+          end: (() => {
+            const date = new Date(stage.endDate);
+            return new CalendarDateTime(
+              date.getFullYear(),
+              date.getMonth() + 1,
+              date.getDate(),
+              date.getHours(),
+              date.getMinutes(),
+              date.getSeconds()
+            );
+          })(),
+        }
       : null
   );
   const [selectedStage, setSelectedStage] = useState<string>(stage.stageId || '');
@@ -323,9 +342,10 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (title && description && dueDate) {
-      const dueDateUTC = dueDate.toDate(getLocalTimeZone()).toISOString();
-      onSubmit({ title, description, dueDate: dueDateUTC, exp, hearts, gems, difficulty, emoji: selectedEmoji, stageId: selectedStage, stageName: selectedStageName });
+    if (title && description && dateRange && dateRange.start && dateRange.end) {
+      const startDateUTC = dateRange.start.toDate(getLocalTimeZone()).toISOString();
+      const endDateUTC = dateRange.end.toDate(getLocalTimeZone()).toISOString();
+      onSubmit({ title, description, startDate: startDateUTC, endDate: endDateUTC, exp, hearts, gems, difficulty, emoji: selectedEmoji, stageId: selectedStage, stageName: selectedStageName });
     }
   };
   
@@ -361,16 +381,15 @@ const EditQuestForm: React.FC<EditQuestFormProps & { stages: Array<{ id: string;
           />
         </div>
         <Input id="quest-description" aria-labelledby="quest-description-label" name="description" label="Description" labelPlacement="inside" placeholder="Focusing on..." value={description} onChange={(e) => setDescription(e.target.value)} />
-        <DatePicker
-          id="edit-quest-due-date"
-          aria-labelledby="edit-quest-due-date-label"
-          name="dueDate"
+        <DateRangePicker
+          id="edit-quest-date-range"
+          aria-labelledby="edit-quest-date-range-label"
           granularity="minute"
           hideTimeZone
-          label="Due Date"
+          label="Date Range"
           labelPlacement="inside"
-          value={dueDate}
-          onChange={setDueDate}
+          value={dateRange}
+          onChange={setDateRange}
         />
         <div className="flex flex-row gap-4 w-full justify-center items-center">
             <Dropdown>
@@ -474,7 +493,7 @@ const QuestItem = ({ quest }: { quest: Quest }) => {
           </div>
         </div>
         <div className="flex flex-row gap-2 text-xs items-center">
-          <span className="text-[#D4D4D8]">{formatDueDate(quest.dueDate)}</span>
+          <span className="text-[#D4D4D8]">{formatDueDate(quest.startDate)}</span>
           {quest.stageName && (
             <Chip size="sm" variant="dot" color="secondary">
               {quest.stageName}
